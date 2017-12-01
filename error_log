@@ -1,0 +1,18 @@
+[29-Nov-2017 08:25:10 Europe/Amsterdam] PHP Fatal error:  Uncaught exception 'AWeberAPIException' with message 'AccessToken key is invalid. https://labs.aweber.com/docs/troubleshooting#unauthorized' in /home/mycodebu/public_html/aw-cpanel/lib/aweber_api/oauth_application.php:488
+Stack trace:
+#0 /home/mycodebu/public_html/aw-cpanel/lib/aweber_api/oauth_application.php(121): OAuthApplication->makeRequest('GET', 'https://api.awe...', Array, Array)
+#1 /home/mycodebu/public_html/aw-cpanel/lib/aweber_api/aweber.php(249): OAuthApplication->request('GET', '/accounts')
+#2 /home/mycodebu/public_html/aw-cpanel/classes/Aweber.php(75): AWeberAPI->getAccount('', '')
+#3 /home/mycodebu/public_html/aw-cpanel/classes/Dashboard.php(20): Aweber->__construct()
+#4 /home/mycodebu/public_html/aw-cpanel/dashboard.php(42): Dashboard->__construct()
+#5 {main}
+  thrown in /home/mycodebu/public_html/aw-cpanel/lib/aweber_api/oauth_application.php on line 488
+[29-Nov-2017 08:31:46 Europe/Amsterdam] PHP Fatal error:  Uncaught exception 'AWeberAPIException' with message 'Consumer key is invalid. https://labs.aweber.com/docs/troubleshooting#unauthorized' in /home/mycodebu/public_html/aw-cpanel/lib/aweber_api/oauth_application.php:488
+Stack trace:
+#0 /home/mycodebu/public_html/aw-cpanel/lib/aweber_api/oauth_application.php(121): OAuthApplication->makeRequest('GET', 'https://api.awe...', Array, Array)
+#1 /home/mycodebu/public_html/aw-cpanel/lib/aweber_api/aweber.php(249): OAuthApplication->request('GET', '/accounts')
+#2 /home/mycodebu/public_html/aw-cpanel/classes/Aweber.php(76): AWeberAPI->getAccount('', '')
+#3 /home/mycodebu/public_html/aw-cpanel/classes/Dashboard.php(20): Aweber->__construct()
+#4 /home/mycodebu/public_html/aw-cpanel/dashboard.php(42): Dashboard->__construct()
+#5 {main}
+  thrown in /home/mycodebu/public_html/aw-cpanel/lib/aweber_api/oauth_application.php on line 488
