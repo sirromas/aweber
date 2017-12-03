@@ -612,10 +612,10 @@ class Aweber
     function get_active_lists()
     {
         $now = time();
-        $query = "select * from aw_lists_config ";
+        $query = "select * from aw_lists_config order by processed limit 0,1";
         $result = $this->db->query($query);
         while ($row = $result->fetch(PDO::FETCH_ASSOC)) {
-            if (($now - $row['processed']) > 7200) {
+            if (($now - $row['processed']) > 3600) {
                 $id = $row['id'];
                 $src_list_id = $row['src_list'];
                 $dst_list_id = $row['dest_list'];
