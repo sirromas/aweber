@@ -13,7 +13,7 @@ require_once '/home/giovannirodriguez/theadriangee.com/aw-cpanel/classes/Db.php'
 require_once '/home/giovannirodriguez/theadriangee.com/aw-cpanel/classes/Helper.php';
 require_once '/home/giovannirodriguez/theadriangee.com/aw-cpanel/lib/aweber_api/aweber_api.php';
 
-error_reporting(0);
+//error_reporting(0);
 
 class Aweber
 {
@@ -62,10 +62,15 @@ class Aweber
         $account = $this->awn->getAccount($this->get_accessToken(), $this->get_accessTokenSecret());
         $this->account = $account;
         if ($update_data) {
-            $this->update_data();
+            //$this->update_data();
+            $this->update_lists_subscribers_status();
         }
     }
 
+    /**
+     * @param bool $update_data
+     * @return Aweber|null
+     */
     public static function getInstance($update_data = true)
     {
         static $instance = null;
@@ -75,6 +80,19 @@ class Aweber
         return $instance;
     }
 
+    function update_lists_subscribers_status()
+    {
+        foreach ($this->account->lists as $offset => $list) {
+            $subscribers = $this->get_list_subscribers($list->id);
+            $totalSubs = count($subscribers);
+            $query = "update aw_lists set subs_total=$totalSubs where list_id=$list->id";
+            $this->db->query($query);
+        }
+    }
+
+    /**
+     *
+     */
     function update_data()
     {
 
@@ -111,6 +129,9 @@ class Aweber
         $this->db->query($query);
     }
 
+    /**
+     * @return mixed
+     */
     function get_callbackUrl()
     {
         $query = "select callbackUrl from aw_credentials";
@@ -121,12 +142,18 @@ class Aweber
         return $callbackUrl;
     }
 
+    /**
+     * @param $data
+     */
     function set_requestTokenSecret($data)
     {
         $query = "update aw_credentials set requestTokenSecret='$data'";
         $this->db->query($query);
     }
 
+    /**
+     * @return mixed
+     */
     function get_requestTokenSecret()
     {
         $query = "select requestTokenSecret from aw_credentials";
@@ -137,12 +164,18 @@ class Aweber
         return $requestTokenSecret;
     }
 
+    /**
+     * @param $data
+     */
     function set_accessToken($data)
     {
         $query = "update aw_credentials set accessToken='$data'";
         $this->db->query($query);
     }
 
+    /**
+     * @return mixed
+     */
     function get_accessToken()
     {
         $query = "select accessToken from aw_credentials";
@@ -153,12 +186,18 @@ class Aweber
         return $accessToken;
     }
 
+    /**
+     * @param $data
+     */
     function set_accessTokenSecret($data)
     {
         $query = "update aw_credentials set accessTokenSecret='$data'";
         $this->db->query($query);
     }
 
+    /**
+     * @return mixed
+     */
     function get_accessTokenSecret()
     {
         $query = "select accessTokenSecret from aw_credentials";
@@ -180,6 +219,9 @@ class Aweber
     }
 
 
+    /**
+     * @param $item
+     */
     function add_list($item)
     {
         $query = "insert into aw_lists 
@@ -196,14 +238,57 @@ class Aweber
         $this->db->query($query);
     }
 
+    /**
+     * @param $item
+     */
     function update_list_subscriber_totals($item)
     {
         $subscribers = $this->get_list_subscribers($item->id);
+        $this->init_subscribers_process($item->id, $subscribers);
         $totalSubs = count($subscribers);
         $query = "update aw_lists set subs_total=$totalSubs where list_id=$item->id";
         $this->db->query($query);
     }
 
+    /**
+     * @param $subscriber_id
+     * @return int
+     */
+    function is_subscriber_exists($subscriber_id)
+    {
+        $query = "select * from aw_subscribers where subscriber_id=$subscriber_id";
+        $num = $this->db->numrows($query);
+        return $num;
+    }
+
+    /**
+     * @param $list_id
+     * @param $subscribers
+     */
+    function init_subscribers_process($list_id, $subscribers)
+    {
+        foreach ($subscribers as $subscriber) {
+            $status = $this->is_subscriber_exists($subscriber->id);
+            if ($status == 0) {
+                $this->add_new_subscriber($list_id, $subscriber->id);
+            }
+        }
+    }
+
+    /**
+     * @param $list_id
+     * @param $subscriber_id
+     */
+    function add_new_subscriber($list_id, $subscriber_id)
+    {
+        $query = "insert into aw_subscribers (old_list_id,subscriber_id) values ($list_id,$subscriber_id)";
+        $this->db->query($query);
+    }
+
+    /**
+     * @param $campaign_id
+     * @return int
+     */
     function is_campaign_exists($campaign_id)
     {
         $query = "select * from aw_campaigns where campaign_id=$campaign_id";
@@ -211,6 +296,10 @@ class Aweber
         return $num;
     }
 
+    /**
+     * @param $list_id
+     * @param $item
+     */
     function add_campaign($list_id, $item)
     {
         $query = "insert into aw_campaigns 
@@ -231,6 +320,10 @@ class Aweber
         $this->db->query($query);
     }
 
+    /**
+     * @param $link_id
+     * @return int
+     */
     function is_link_exists($link_id)
     {
         $query = "select * from aw_links where link_id=$link_id";
@@ -238,6 +331,11 @@ class Aweber
         return $num;
     }
 
+    /**
+     * @param $list_id
+     * @param $campaign_id
+     * @param $item
+     */
     function add_link($list_id, $campaign_id, $item)
     {
         $query = "insert into aw_links 
@@ -256,6 +354,10 @@ class Aweber
         $this->db->query($query);
     }
 
+    /**
+     * @param $list_id
+     * @param $campaign
+     */
     function update_campaign_data($list_id, $campaign)
     {
         $status = $this->is_campaign_stats_data_exist($campaign->id);
@@ -267,6 +369,10 @@ class Aweber
         } // end else
     }
 
+    /**
+     * @param $list_id
+     * @param $campaign
+     */
     function add_campaign_stats($list_id, $campaign)
     {
         $now = time();
@@ -288,6 +394,9 @@ class Aweber
         $this->db->query($query);
     }
 
+    /**
+     * @param $campaign
+     */
     function update_campaign_stats($campaign)
     {
         $now = time();
@@ -300,6 +409,10 @@ class Aweber
         $this->db->query($query);
     }
 
+    /**
+     * @param $campaign_id
+     * @return int
+     */
     function is_campaign_stats_data_exist($campaign_id)
     {
         $query = "select * from aw_campaign_stats where campaign_id=$campaign_id";
@@ -328,6 +441,10 @@ class Aweber
     }
 
 
+    /**
+     * @param $campaign_id
+     * @return mixed
+     */
     function get_campaign_name_by_id($campaign_id)
     {
         $query = "select * from aw_campaigns where campaign_id=$campaign_id";
@@ -339,17 +456,22 @@ class Aweber
     }
 
 
+    /**
+     * @param bool $items
+     * @return string
+     */
     function get_links_list($items = false)
     {
         $list_a = "";
         $list_a .= "<select multiple id='click_types_dropdown' style='width: 100%'>";
-        $list_a .= "<option value='0' selected>Please select</option>";
+        $list_a .= "<option value='0' selected>Any Link</option>";
         $query = "select * from aw_links";
         $result = $this->db->query($query);
         while ($row = $result->fetch(PDO::FETCH_ASSOC)) {
             $cname = $this->get_campaign_name_by_id($row['campaign_id']);
             if ($cname != '') {
-                $name = "$cname - " . $row['url'] . "";
+                //$name = "$cname - " . $row['url'] . "";
+                $name = $row['url'];
                 if ($items) {
                     $items_arr = explode(',', $items);
                     if (in_array($row['link_id'], $items_arr)) {
@@ -371,11 +493,27 @@ class Aweber
     /**
      * @return string
      */
+    function get_links_num_dropdown()
+    {
+        $list_a = "";
+        $list_a .= "<select id='links_total_dropdown' style='width: 100px;'>";
+        $list_a .= "<option value='0' selected>Please select</option>";
+        for ($i = 1; $i <= 18; $i++) {
+            $list_a .= "<option value='$i'>$i</option>";
+        }
+        $list_a .= "</select>";
+        return $list_a;
+    }
+
+    /**
+     * @return string
+     */
     function get_toolbar()
     {
         $list_a = "";
         $src_list = $this->get_lists_drop_down('src');
         $dst_list = $this->get_lists_drop_down('dst');
+        $links_total = $this->get_links_num_dropdown();
         $links = $this->get_links_list();
 
         $list_a .= "<table class='display' style='margin-top: 35px;width: 100%'>";
@@ -384,8 +522,10 @@ class Aweber
         $list_a .= "<td class='col-md-1'>$src_list</td>";
         $list_a .= "<td class='col-md-1'>Destination<span style='color: red;'>*</span></td>";
         $list_a .= "<td class='col-md-1'>$dst_list</td>";
+        $list_a .= "<td class='col-md-1'>links #<span style='color: red;'>*</span></td>";
+        $list_a .= "<td class='col-md-1'>$links_total</td>";
         $list_a .= "<td class='col-md-1'>Links<span style='color: red;'>*</span></td>";
-        $list_a .= "<td class='col-md-7' colspan='4'>$links</td>";
+        $list_a .= "<td class='col-md-5' colspan='4'>$links</td>";
         $list_a .= "</tr>";
 
         $list_a .= "<tr>";
@@ -482,6 +622,10 @@ class Aweber
         return $subscribers;
     }
 
+    /**
+     * @param $link_id
+     * @return mixed
+     */
     function get_link_clicks_data($link_id)
     {
         $query = "select * from aw_links where link_id=$link_id";
@@ -493,6 +637,10 @@ class Aweber
         return $clicks_data->data['entries'];
     }
 
+    /**
+     * @param $clicks_data
+     * @return array
+     */
     function get_link_click_subscribers($clicks_data)
     {
         foreach ($clicks_data as $entry) {
@@ -504,6 +652,10 @@ class Aweber
         return $subs;
     }
 
+    /**
+     * @param $list_id
+     * @return mixed
+     */
     function get_list_name_by_id($list_id)
     {
         $query = "select * from aw_lists where list_id=$list_id";
@@ -515,6 +667,13 @@ class Aweber
     }
 
 
+    /**
+     * @param $id
+     * @param $links_arr
+     * @param $src_list_id
+     * @param $dst_list_id
+     * @return bool
+     */
     function process_list_subscribers($id, $links_arr, $src_list_id, $dst_list_id)
     {
         $time_start = microtime(true);
@@ -536,7 +695,7 @@ class Aweber
             $subs_id = $subscriber->id;
             echo "Current Subscriber: " . $subs_id . "<br>";
 
-            if ($i < 10000) {
+            if ($i <= 1) {
 
                 foreach ($links_arr as $link_id) {
                     $clicks_data = $this->get_link_clicks_data($link_id);
@@ -584,6 +743,9 @@ class Aweber
     }
 
 
+    /**
+     * @param $id
+     */
     function update_config_entry($id)
     {
         $now = time();
@@ -591,17 +753,63 @@ class Aweber
         $this->db->query($query);
     }
 
-    function move_subscriber_to_other_list($subscriber, $list_name)
+    /**
+     * @param $subscriber
+     * @param $list_name
+     */
+    function move_subscriber_to_other_list($subscriber, $dest_list_id, $list_name)
     {
         $found_lists = $this->account->lists->find(array('name' => $list_name));
         $destination_list = $found_lists[0];
-        $subscriber->move($destination_list);
+
+        echo "Destination List Object<pre>";
+        print_r($destination_list);
+        echo "</pre>";
+
+        echo "Subscriber ID to be moved: " . $subscriber->id . "<br>";
+        echo "New list Name: " . $list_name . "<br>";
+
+        try {
+            $subscriber->move($destination_list);
+            $now = time();
+            $query = "update aw_subscribers 
+                  set   old_list_id=$dest_list_id  , processed='$now'
+                  where subscriber_id=$subscriber->id";
+            echo "Query: " . $query . "<br>";
+            $this->db->query($query);
+            echo "Subscriber with ID {$subscriber->id} has been moved to list $dest_list_id<br>";
+            echo "<br>---------------------------------------------------------------------------<br>";
+
+        } // end try
+        catch (AWeberAPIException $exc) {
+            $now = time();
+            $query = "update aw_subscribers 
+                  set processed='$now'
+                  where subscriber_id=$subscriber->id";
+            echo "Query: " . $query . "<br>";
+            $this->db->query($query);
+            echo "Subscriber with ID {$subscriber->id} has been moved to list $dest_list_id<br>";
+            echo "<br>---------------------------------------------------------------------------<br>";
+        }
+
     }
 
+    /**
+     * @param $subscriber
+     * @return array
+     */
     function get_subscriber_clicks($subscriber)
     {
         $subscriber_activity = $subscriber->getActivity();
+        /*
+        echo "Current Subscriber Click events: <pre>";
+        print_r($subscriber_activity);
+        echo "</pre><br>";
+        echo "<br>---------------------------------------------------------------------------<br>";
+        */
+
         foreach ($subscriber_activity as $event) {
+
             if ($event->type == 'click') {
                 $events[] = $event;
             } // end if
@@ -609,8 +817,25 @@ class Aweber
         return $events;
     }
 
+    /**
+     * @return array
+     */
+    function get_all_links_array()
+    {
+        $query = "select * from aw_links order by link_id";
+        $result = $this->db->query($query);
+        while ($row = $result->fetch(PDO::FETCH_ASSOC)) {
+            $links[] = $row['link_id'];
+        }
+        return $links;
+    }
+
+    /**
+     *
+     */
     function get_active_lists()
     {
+
         $now = time();
         $query = "select * from aw_lists_config order by processed limit 0,1";
         $result = $this->db->query($query);
@@ -619,13 +844,87 @@ class Aweber
                 $id = $row['id'];
                 $src_list_id = $row['src_list'];
                 $dst_list_id = $row['dest_list'];
-                $links_arr = explode(',', $row['clicks_type']);
+                if ($row['clicks_type'] != 0) {
+                    $links_arr = explode(',', $row['clicks_type']);
+                    $anylink = false;
+                } // end if
+                else {
+                    $links_arr = $this->get_all_links_array();
+                    $anylink = true;
+                }
                 $this->process_list_subscribers($id, $links_arr, $src_list_id, $dst_list_id);
             } // end if
             else {
                 echo "There are no lists to be processed .....";
             }
         } // end while
+    }
+
+    /**
+     *
+     */
+    function process_list_single_subscriber()
+    {
+        $now = time();
+        $query = "select * from aw_subscribers where processed=0 and 
+                  new_list_id<>0 
+                  and old_list_id<>new_list_id limit 0, 1";
+        echo "Query: " . $query . "<br><br>";
+        $num = $this->db->numrows($query);
+        if ($num > 0) {
+            $result = $this->db->query($query);
+            while ($row = $result->fetch(PDO::FETCH_ASSOC)) {
+                $this->move_single_subscriber($row['old_list_id'], $row['new_list_id'], $row['subscriber_id'], $row['total_clicks']);
+            } // end while
+        } // end if $num > 0
+        else {
+            echo "<p style='text-align: center;'>The are no subscribers to be processed ....</p>";
+        }
+    }
+
+    /**
+     * @param $src
+     * @param $dst
+     * @param $subscriber_id
+     * @param $total
+     */
+    function move_single_subscriber($src, $dst, $subscriber_id, $total)
+    {
+        /*
+        echo "move_single_subscriber <pre>";
+        print_r(func_get_args());
+        echo "</pre><br>";
+        */
+
+        $subscribers = $this->get_list_subscribers($src);
+
+        /*
+        echo "List subscribers<pre>";
+        print_r($subscribers);
+        echo "</pre><br>";
+        */
+        $now = time();
+        foreach ($subscribers as $subscriber) {
+            if ($subscriber->id == $subscriber_id) {
+                $click_events = $this->get_subscriber_clicks($subscriber);
+                $total_clicks = count($click_events);
+                echo "Current Subscriber: " . $subscriber_id . "<br>";
+                echo "Total Clicks For Current Subscriber: " . $total_clicks . "<br>";
+                if ($total_clicks >= $total) {
+                    $list_name = $this->get_list_name_by_id($dst);
+                    $this->move_subscriber_to_other_list($subscriber, $dst, $list_name);
+                } // end if
+                else {
+                    $query = "update aw_subscribers set processed='$now' where subscriber_id=$subscriber_id";
+                    $this->db->query($query);
+                    echo "Subscriber with ID $subscriber_id marked as processed<br>";
+                    echo "<br>---------------------------------------------------------------------------<br>";
+                }
+            } // end if
+            else {
+                continue;
+            } // end else
+        } // end foreach
     }
 
     /**************************************** End of processing section ****************************************/

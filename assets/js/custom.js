@@ -45,10 +45,10 @@ $(document).ready(function () {
         if (event.target.id == 'add_new_list_settings') {
             var src = $('#list_dropdown_src').val();
             var dst = $('#list_dropdown_dst').val();
-            var total = $('#click_num_dropdown').val();
+            var total = $('#links_total_dropdown').val();
             var type = $('#click_types_dropdown').val();
 
-            if (src == 0 || dst == 0 || total == 0 || type == 0) {
+            if (src == 0 || dst == 0 || total == 0) {
                 $('#add_err').html('Please provide all required fields');
             } // end if
             else {
@@ -134,14 +134,15 @@ $(document).ready(function () {
             var id = $('#config_id').val();
             var src = $('#list_dropdown_src_edit').val();
             var dst = $('#list_dropdown_dst_edit').val();
+            var to = $('#links_total_edit_dropdown').val();
             var lst = $('#click_types_edit_dropdown').val();
 
-            if (src == 0 || dst == 0 || lst == 0) {
+            if (src == 0 || dst == 0 || to == 0) {
                 $('#subs_err').html('Please provide all required fields');
             } // end if
             else {
                 $('#subs_err').html('');
-                var item = {id: id, src: src, dst: dst, lst: lst};
+                var item = {id: id, src: src, dst: dst, to: to, lst: lst};
                 var url = '/aw-cpanel/update_subs_data.php';
                 $.post(url, {item: JSON.stringify(item)}).done(function (data) {
                     console.log(data);

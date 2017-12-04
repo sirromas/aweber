@@ -196,8 +196,8 @@ class Helper
         foreach ($links_arr as $link_id) {
             if ($link_id > 0) {
                 $link = $this->get_link_data($link_id); // object
-                $cname = $this->get_campaign_name_by_id($link->campaign_id);
-                $anchor = "<span class='col-md-4'>$cname</span><span class='col-md-8'><a href='{$link->url}' target='_blank'>{$link->url}</a></span>";
+                //$cname = $this->get_campaign_name_by_id($link->campaign_id);
+                $anchor = "<span class='col-md-12'><a href='{$link->url}' target='_blank'>{$link->url}</a></span>";
                 $list_a .= "<div class='row'>";
                 $list_a .= "<span class='col-md-12'>$anchor</span>";
                 $list_a .= "</div>";
@@ -205,6 +205,11 @@ class Helper
                 $list_a .= "<span class='col-md-12'><hr/></span>";
                 $list_a .= "</div>";
             } // end if $link_id>0
+            else {
+                $list_a .= "<div class='row'>";
+                $list_a .= "<span class='col-md-12'>Any Link</span>";
+                $list_a .= "</div>";
+            }
         } // end foreach
         return $list_a;
     }
@@ -222,6 +227,7 @@ class Helper
         $list_a .= "<tr>";
         $list_a .= "<th>Source</th>";
         $list_a .= "<th>Destination</th>";
+        $list_a .= "<th>Links Number</th>";
         $list_a .= "<th>Links List</th>";
         $list_a .= "<th>Last Updated</th>";
         $list_a .= "<th>Ops</th>";
@@ -238,12 +244,14 @@ class Helper
                 $id = $row['id'];
                 $src = $this->get_list_name_by_id($row['src_list']);
                 $dst = $this->get_list_name_by_id($row['dest_list']);
+                $total = $row['clicks_num'];
                 $updated = date('m-d-Y', $row['updated']);
                 $ops = $this->get_ops_items($id);
                 $links = $this->get_links_block($row['clicks_type']);
                 $list_a .= "<tr>";
                 $list_a .= "<td style='text-align: left;'>$src</td>";
                 $list_a .= "<td style='text-align: left;'>$dst</td>";
+                $list_a .= "<td style='text-align: left;'>$total</td>";
                 $list_a .= "<td style='text-align: left;'>$links</td>";
                 $list_a .= "<td style='text-align: left;'>$updated</td>";
                 $list_a .= "<td style='padding-left:15px;'>$ops</td>";
@@ -267,13 +275,28 @@ class Helper
         $type = implode(',', $item->type);
         $query = "insert into aw_lists_config 
                 (src_list, 
-                 dest_list,	
+                 dest_list, clicks_num,	
                  clicks_type, 
                  updated) 
                  values ('$item->src',
-                         '$item->dst',
+                         '$item->dst', '$item->total',
                         '$type',
                         '$now');";
+        $this->db->query($query);
+        $this->update_subscribers_list_data($item->src, $item->dst, $item->total);
+    }
+
+    /**
+     * @param $src
+     * @param $dst
+     */
+    function update_subscribers_list_data($src, $dst, $total)
+    {
+        $query = "update aw_subscribers 
+                  set new_list_id=$dst, 
+                  total_clicks=$total, 
+                  processed=0
+                  where old_list_id=$src";
         $this->db->query($query);
     }
 
@@ -290,9 +313,26 @@ class Helper
      */
     function delete_config_item($id)
     {
+        $query = "select * from aw_lists_config where id=$id ";
+        $result = $this->db->query($query);
+        while ($row = $result->fetch(PDO::FETCH_ASSOC)) {
+            $src = $row['src_list'];
+        }
+        $this->erase_subscribers_list_data($src);
+
         $query = "delete from aw_lists_config where id=$id";
         $this->db->query($query);
     }
+
+    /**
+     * @param $src
+     */
+    function erase_subscribers_list_data($src)
+    {
+        $query = "update aw_subscribers set new_list_id=0 where old_list_id=$src";
+        $this->db->query($query);
+    }
+
 
     /**
      * @param $type
@@ -324,6 +364,27 @@ class Helper
     }
 
     /**
+     * @param $total
+     * @return string
+     */
+    function get_links_num_dropdown($total)
+    {
+        $list_a = "";
+        $list_a .= "<select id='links_total_edit_dropdown' style='width: 100px;'>";
+        $list_a .= "<option value='0' selected>Please select</option>";
+        for ($i = 1; $i <= 18; $i++) {
+            if ($total == $i) {
+                $list_a .= "<option value='$i' selected>$i</option>";
+            } // end if
+            else {
+                $list_a .= "<option value='$i'>$i</option>";
+            } // end else
+        }
+        $list_a .= "</select>";
+        return $list_a;
+    }
+
+    /**
      * @param bool $items
      * @return string
      */
@@ -331,7 +392,7 @@ class Helper
     {
         $list_a = "";
         $list_a .= "<select multiple id='click_types_edit_dropdown' style='width:100%'>";
-        $list_a .= "<option value='0' selected>Please select</option>";
+        $list_a .= "<option value='0' selected>Any Link</option>";
         $query = "select * from aw_links";
         $result = $this->db->query($query);
         while ($row = $result->fetch(PDO::FETCH_ASSOC)) {
@@ -370,6 +431,7 @@ class Helper
         while ($row = $result->fetch(PDO::FETCH_ASSOC)) {
             $sr_dwn = $this->get_lists_drop_down('src_edit', $row['src_list']);
             $dt_dwn = $this->get_lists_drop_down('dst_edit', $row['dest_list']);
+            $to_dwn = $this->get_links_num_dropdown($row['clicks_num']);
             $ln_dwn = $this->get_links_list($row['clicks_type']);
         }
 
@@ -391,6 +453,11 @@ class Helper
                 <div class='row' style='margin-bottom:10px;padding-left:15px;'>
                 <span class='col-md-3'>Destination List*</span>
                 <span class='col-md-8'>$dt_dwn</span>
+                </div>
+                
+                <div class='row' style='margin-bottom:10px;padding-left:15px;'>
+                <span class='col-md-3'>Links total*</span>
+                <span class='col-md-8'>$to_dwn</span>
                 </div>
                 
                 <div class='row' style='margin-bottom:10px;padding-left:15px;'>
@@ -485,10 +552,11 @@ class Helper
         $links = implode(',', $item->lst);
         $query = "update aw_lists_config set
                            src_list='$item->src', 
-                           dest_list='$item->dst', 
+                           dest_list='$item->dst', clicks_num='$item->to', 
                            clicks_type='$links', 
                            updated='$now' WHERE id=$item->id";
         $this->db->query($query);
+        $this->update_subscribers_list_data($item->src, $item->dst, $item->to);
     }
 
     /**
@@ -506,6 +574,10 @@ class Helper
         $this->db->query($query);
     }
 
+    /**
+     * @param $userid
+     * @return mixed
+     */
     function is_admin($userid)
     {
         $query = "select * from aw_users where id=$userid";
@@ -516,6 +588,10 @@ class Helper
         return $status;
     }
 
+    /**
+     * @param $userid
+     * @return string
+     */
     function get_user_ops_items($userid)
     {
         $list = "";
@@ -530,6 +606,9 @@ class Helper
         return $list;
     }
 
+    /**
+     * @return string
+     */
     function get_users_table()
     {
         $list = "";
