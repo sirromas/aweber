@@ -80,12 +80,15 @@ class Aweber
         return $instance;
     }
 
+    /**
+     *
+     */
     function update_lists_subscribers_status()
     {
         foreach ($this->account->lists as $offset => $list) {
-            $subscribers = $this->get_list_subscribers($list->id);
-            $totalSubs = count($subscribers);
+            $totalSubs = $list->total_subscribed_subscribers;
             $query = "update aw_lists set subs_total=$totalSubs where list_id=$list->id";
+            //echo "Query: ".$query."<br>";
             $this->db->query($query);
         }
     }
@@ -270,7 +273,7 @@ class Aweber
         foreach ($subscribers as $subscriber) {
             $status = $this->is_subscriber_exists($subscriber->id);
             if ($status == 0) {
-                $this->add_new_subscriber($list_id, $subscriber->id);
+                $this->add_new_subscriber($list_id, $subscriber);
             }
         }
     }
@@ -279,9 +282,39 @@ class Aweber
      * @param $list_id
      * @param $subscriber_id
      */
-    function add_new_subscriber($list_id, $subscriber_id)
+    function add_new_subscriber($list_id, $subscriber)
     {
-        $query = "insert into aw_subscribers (old_list_id,subscriber_id) values ($list_id,$subscriber_id)";
+        $query = "insert into aw_subscribers 
+                  (old_list_id,
+                  subscriber_id,
+                  email) 
+                  values ($list_id,
+                          $subscriber->id, 
+                          $subscriber->email)";
+        $this->db->query($query);
+    }
+
+
+    /**
+     * @param $list_id
+     */
+    function update_subscribers_email($list_id)
+    {
+        $subscribers = $this->get_list_subscribers($list_id);
+        foreach ($subscribers as $subscriber) {
+            echo "Subscriber ID: {$subscriber->id} <br>";
+            echo "Subdcriber Email: {$subscriber->email}<br>";
+            $this->update_subs_email($subscriber->id, $subscriber->email);
+        } // end foreach
+    }
+
+    /**
+     * @param $subscriber_id
+     * @param $email
+     */
+    function update_subs_email($subscriber_id, $email)
+    {
+        $query = "update aw_subscribers set email='$email' where subscriber_id='$subscriber_id'";
         $this->db->query($query);
     }
 
@@ -612,7 +645,6 @@ class Aweber
 
     function get_list_subscribers($list_id)
     {
-
         $query = "select * from aw_lists where list_id=$list_id";
         $result = $this->db->query($query);
         while ($row = $result->fetch(PDO::FETCH_ASSOC)) {
@@ -800,21 +832,31 @@ class Aweber
      */
     function get_subscriber_clicks($subscriber)
     {
+        $events = array();
         $subscriber_activity = $subscriber->getActivity();
-        /*
-        echo "Current Subscriber Click events: <pre>";
-        print_r($subscriber_activity);
-        echo "</pre><br>";
-        echo "<br>---------------------------------------------------------------------------<br>";
-        */
-
         foreach ($subscriber_activity as $event) {
-
             if ($event->type == 'click') {
-                $events[] = $event;
+                $pos = strpos($event->data['self_link'], '/clicks/');
+                $clearlink = substr($event->data['self_link'], 0, $pos);
+                if ($clearlink != '') {
+                    $events[] = $clearlink;
+                }
             } // end if
         } // end foreach
-        return $events;
+
+        $pure_events = array_unique($events);
+
+        echo "Current Subscriber Click events: <pre>";
+        print_r($events);
+        echo "</pre><br>";
+        echo "<br>---------------------------------------------------------------------------<br>";
+
+        echo "Current Subscriber Click Unique events: <pre>";
+        print_r($pure_events);
+        echo "</pre><br>";
+        echo "<br>---------------------------------------------------------------------------<br>";
+
+        return $pure_events;
     }
 
     /**
@@ -890,27 +932,16 @@ class Aweber
      */
     function move_single_subscriber($src, $dst, $subscriber_id, $total)
     {
-        /*
-        echo "move_single_subscriber <pre>";
-        print_r(func_get_args());
-        echo "</pre><br>";
-        */
-
         $subscribers = $this->get_list_subscribers($src);
-
-        /*
-        echo "List subscribers<pre>";
-        print_r($subscribers);
-        echo "</pre><br>";
-        */
         $now = time();
+        echo "Total links required to be qualified: " . $total . "<br>";
         foreach ($subscribers as $subscriber) {
             if ($subscriber->id == $subscriber_id) {
                 $click_events = $this->get_subscriber_clicks($subscriber);
                 $total_clicks = count($click_events);
                 echo "Current Subscriber: " . $subscriber_id . "<br>";
-                echo "Total Clicks For Current Subscriber: " . $total_clicks . "<br>";
-                if ($total_clicks >= $total) {
+                echo "Total Unique Clicks For Current Subscriber: " . $total_clicks . "<br>";
+                if ($total_clicks == $total) {
                     $list_name = $this->get_list_name_by_id($dst);
                     $this->move_subscriber_to_other_list($subscriber, $dst, $list_name);
                 } // end if
@@ -920,12 +951,72 @@ class Aweber
                     echo "Subscriber with ID $subscriber_id marked as processed<br>";
                     echo "<br>---------------------------------------------------------------------------<br>";
                 }
-            } // end if
+            } // end if $subscriber->id == $subscriber_id
             else {
                 continue;
             } // end else
         } // end foreach
     }
 
-    /**************************************** End of processing section ****************************************/
+
+    /**
+     * @param $src
+     * @param $list_name
+     */
+    function move_subscribers_back($src, $old_list_id)
+    {
+
+        $old_lists_subscribers = $this->get_list_subscribers($old_list_id);
+        $subscribers = $this->get_list_subscribers($src);
+        $i = 0;
+        foreach ($subscribers as $subscriber) {
+            if ($subscriber->status == 'unsubscribed') {
+                echo "Subscriber:<pre>";
+                print_r($subscriber->data);
+                echo "</pre><br>----------------------------------------------------------<br>";
+                $this->resubscribe($subscriber, $old_lists_subscribers);
+
+                /*
+                try {
+                    $subscriber->status = 'unsubscribed';
+                    $subscriber->save();
+                } // end try
+                catch (AWeberAPIException $exc) {
+                    print "<h3>AWeberAPIException:</h3>";
+                    print " <li> Type: $exc->type              <br>";
+                    print " <li> Msg : $exc->message           <br>";
+                    print " <li> Docs: $exc->documentation_url <br>";
+                    print "<hr>";
+                }
+                */
+
+            } // end if $subscriber->status!='unsubscribed'
+            $i++;
+        } // end foreach
+    }
+
+    /**
+     * @param $subscriber
+     * @param $old_list_id
+     */
+    function resubscribe($subscriber, $old_lists_subscribers)
+    {
+        foreach ($old_lists_subscribers as $old_subscriber) {
+            if ($old_subscriber->id == $subscriber->id && $old_subscriber->status == 'unsubscribed') {
+                try {
+                    $old_subscriber->status = 'subscribed';
+                    $old_subscriber->save();
+                } // end try
+                catch (AWeberAPIException $exc) {
+                    print "<h3>AWeberAPIException:</h3>";
+                    print " <li> Type: $exc->type              <br>";
+                    print " <li> Msg : $exc->message           <br>";
+                    print " <li> Docs: $exc->documentation_url <br>";
+                    print "<hr>";
+                }
+            } // end if
+        } // end foreach
+    }
+
+
 }
